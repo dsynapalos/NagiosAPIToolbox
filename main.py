@@ -25,6 +25,8 @@ import sys
 import os
 import RESTFunctions as RF
 import SSHFunctions as SF
+import DOCXFunctions as DF
+import DocumentConstruction as DC
 import InitialSetup as IS
 
 urllib3.disable_warnings()
