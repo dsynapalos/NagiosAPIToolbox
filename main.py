@@ -24,40 +24,48 @@ import re
 import sys
 import os
 import getopt
-import RESTFunctions as RF
-import SSHFunctions as SF
-import DOCXFunctions as DF
-import DocumentConstruction as DC
-import InitialSetup as IS
-
-urllib3.disable_warnings()
 
 FILENAME = os.path.realpath(__file__).replace('\\', '/')
 DIRECTORY = os.path.dirname(FILENAME).replace('\\', '/')
 
+import RESTFunctions as RF
+import SSHFunctions as SF
+import DOCXFunctions as DF
+import PYTHONFunctions as PF
+import DocumentConstruction as DC
+import InitialSetup as IS
+import clients as CL
+
+urllib3.disable_warnings()
+
 
 def main(argv):
+    #try:
 
-    try:
         try:
 
             opts, args = getopt.getopt(argv, "hd:", ['help', 'dates'])
             opts_list = list(dict(opts).keys())
             print(opts_list)
         except getopt.GetoptError:
-            print(FILENAME + ' -r -s "DD MM" -e "DD MM"')
+            print(FILENAME + ' -d "DD MM DD MM"')
             sys.exit(2)
-        if '-h'in opts_list or '--help' in opts_list:
+
+        if '-h' in opts_list or '--help' in opts_list:
             print(FILENAME + ' -d "DD MM DD MM"')
             sys.exit()
-
         elif '-d' in opts_list or '--dates' in opts_list:
 
-            start_day, start_month, end_day, end_month = [item for item in dict(opts)['-d'].split()]
+            dates = dict(opts)['-d'].split()
+            PF.exitOffice()
+            CL.initialize(dates)
+            DC.constructDocument(CL.index, dates, CL.template)
 
-    except:
-        print('Error: {}'.format(sys.exc_info()))
-        exit()
+
+    #except:
+        #print('Error: {}'.format(sys.exc_info()))
+
+        #exit()
 
 
 if __name__ == '__main__':

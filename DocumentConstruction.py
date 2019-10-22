@@ -1,3 +1,4 @@
+from docx import Document, opc
 from docx.enum.text import *
 from docx.shared import Cm, Pt, RGBColor
 from docx.oxml.ns import qn
@@ -5,59 +6,53 @@ from docx.oxml import OxmlElement
 from docx.enum.table import *
 import clients as CL
 import main as M
+from datetime import datetime
 import DOCXFunctions as DF
 
 
-def constructDocument(index, template):
-    new_document = M.DIRECTORY + '/' + template + '.docx'
+def constructDocument(index, dates, template):
+    start_day, start_month, end_day, end_month = [item for item in dates]
+    new_document = Document(template)
 
     '''
     Preface
     '''
 
-    new_document.paragraphs[0].add_run().add_picture(M.depPath + '/images/image1.png', width=Cm(10.6))
+    new_document.add_paragraph().add_run().add_picture(CL.company_logo, width=Cm(12.7))
     new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-    DF.br(new_document, 1)
+    DF.line_brake(new_document, 1)
 
-    runT = new_document.add_paragraph().add_run(CL.Clients[CL.Clients.keys()[index]])
-    new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    runT.font.size = Pt(28)
-    runT.bold = True
-
-    runD = new_document.add_paragraph().add_run(startDate + ' - ' + endDate)
-    new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    runD.font.size = Pt(28)
-    runD.bold = True
-
-    DF.br(new_document, 3)
-
-    runC = new_document.add_paragraph().add_run(vr.Recipients[m.Client]['Client'])
-    new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    runC.font.size = Pt(22)
-    runC.font.name = 'Calibri Light'
-
-    DF.br(new_document, 1)
-
-    new_document.add_paragraph().add_run().add_picture(m.depPath + '/images/image2.png', width=Cm(3))
+    new_document.add_paragraph().add_run(CL.report_type).font.name = 'Cambria'
     new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-    DF.br(new_document, 1)
+    DF.line_brake(new_document, 2)
 
-    new_document.add_paragraph().add_run(toDate)
+    new_document.add_paragraph().add_run(CL.Clients[index]['TITLE']).font.name = 'Cambria'
     new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-    DF.br(new_document, 1)
+    DF.line_brake(new_document, 2)
 
-    new_document.add_paragraph().add_run(vr.Category)
+    new_document.add_paragraph().add_run(str(datetime.now().strftime('%d/%m/%Y'))).font.name = 'Cambria'
     new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-    DF.br(new_document, 4)
+    DF.line_brake(new_document, 2)
 
-    par = new_document.add_paragraph()
-    par.add_run('Classification: ')
-    runB = par.add_run(vr.Classification)
-    runB.bold = True
+    new_document.add_paragraph().add_run(CL.report_desc).font.name = 'Cambria'
+    new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+    DF.line_brake(new_document, 6)
+
+    new_document.add_paragraph().add_run(CL.classify).font.name = 'Cambria'
     new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
     new_document.add_page_break()
+
+    '''
+    Contacts
+    '''
+
+
+
+    new_document.save('demo.docx')
+

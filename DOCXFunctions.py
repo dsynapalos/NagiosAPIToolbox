@@ -89,3 +89,7 @@ def create_Toc(cr_document):
     r_element.append(fldChar4)
 
     cr_document.add_page_break()
+
+def line_brake(doc, n):
+    for i in range(0, n):
+        doc.add_paragraph()

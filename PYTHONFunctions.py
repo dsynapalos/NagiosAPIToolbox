@@ -1,14 +1,33 @@
 from datetime import datetime, timedelta
 import re, os
+import psutil
+from platform import system as system_name
+from subprocess import call as system_call
 
 
-def getDates(datafiles):
-    dateList = []
-    for datafile in datafiles:
-        dateList.append(
-            datetime.strptime(re.search('(\d+-\d+-\d+)\..+', os.path.basename(datafile)).group(1), '%d-%m-%y'))
-    startDate = sorted(dateList)[0].strftime('%d/%m/%Y')
-    endDate = sorted(dateList)[-1].strftime('%d/%m/%Y')
-    toDate = datetime.today().strftime('%d/%m/%Y')
-    toMorrow = (datetime.today() + timedelta(days=1)).strftime('%d/%m/%Y')
-    return startDate, endDate, toDate, toMorrow
+# Edited from https://stackoverflow.com/questions/2953462/pinging-servers-in-python
+def ping(host):
+    """
+    Returns True if host (str) responds to a ping request.
+    Remember that a host may not respond to a ping (ICMP) request even if the host name is valid.
+    """
+
+    # Ping command count option as function of OS
+    param = '-n' if system_name().lower() == 'windows' else '-c'
+
+    # Building the command. Ex: "ping -c 1 google.com"
+    command = ['ping', param, '1', host]
+
+    # Pinging
+    return system_call(command) == 0
+
+
+def exitOffice():
+    ''' Kills Office processes
+
+    :return:
+    '''
+    if system_name() == 'Windows':
+        for proc in psutil.process_iter():
+            if proc.name() == 'EXCEL.EXE' or proc.name() == 'WINWORD.EXE':
+                psutil.Process(proc.pid).terminate()
