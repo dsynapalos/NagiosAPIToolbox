@@ -41,31 +41,20 @@ def main(argv):
     try:
         try:
 
-            opts, args = getopt.getopt(argv, "hrs:e:", ['help', 'report', 'start-date=', 'end-date='])
+            opts, args = getopt.getopt(argv, "hd:", ['help', 'dates'])
             opts_list = list(dict(opts).keys())
             print(opts_list)
         except getopt.GetoptError:
             print(FILENAME + ' -r -s "DD MM" -e "DD MM"')
             sys.exit(2)
         if '-h'in opts_list or '--help' in opts_list:
-            print(FILENAME + ' -r -s "DD MM" -e "DD MM"')
+            print(FILENAME + ' -d "DD MM DD MM"')
             sys.exit()
 
-        elif '-r' in opts_list or '--report' in opts_list:
+        elif '-d' in opts_list or '--dates' in opts_list:
 
-            if ('-s' in opts_list or '--start-date=' in opts_list) and ('-e' in opts_list or '--end-date=' in opts_list):
-                to_date = datetime.now().day
-                for opt in opts:
-                    if opt[0] == '-s' or opt[0] == '--start-date=':
-                        start_date = opt[1].split()
-                    if opt[0] == '-e' or opt[0] == '--end-date=':
-                        end_date = opt[1].split()
-            else:
-                to_date = datetime.now().day
-                start_date = ''
-                end_date = ''
+            start_day, start_month, end_day, end_month = [item for item in dict(opts)['-d'].split()]
 
-        print(to_date, start_date, end_date)
     except:
         print('Error: {}'.format(sys.exc_info()))
         exit()
