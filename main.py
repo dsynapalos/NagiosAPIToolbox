@@ -27,6 +27,7 @@ import getopt
 
 FILENAME = os.path.realpath(__file__).replace('\\', '/')
 DIRECTORY = os.path.dirname(FILENAME).replace('\\', '/')
+DATES = []
 
 import RESTFunctions as RF
 import SSHFunctions as SF
@@ -35,37 +36,41 @@ import PYTHONFunctions as PF
 import DocumentConstruction as DC
 import InitialSetup as IS
 import clients as CL
+import ReportDataGathering as RD
 
 urllib3.disable_warnings()
 
 
 def main(argv):
-    #try:
+    try:
 
-        try:
+        opts, args = getopt.getopt(argv, "hd:", ['help', 'DATES'])
+        opts_list = list(dict(opts).keys())
+        print(opts_list)
 
-            opts, args = getopt.getopt(argv, "hd:", ['help', 'dates'])
-            opts_list = list(dict(opts).keys())
-            print(opts_list)
-        except getopt.GetoptError:
-            print(FILENAME + ' -d "DD MM DD MM"')
-            sys.exit(2)
+    except getopt.GetoptError:
+        print(FILENAME + ' -d "DD MM DD MM"')
+        sys.exit(2)
 
-        if '-h' in opts_list or '--help' in opts_list:
-            print(FILENAME + ' -d "DD MM DD MM"')
-            sys.exit()
-        elif '-d' in opts_list or '--dates' in opts_list:
+    if '-h' in opts_list or '--help' in opts_list:
+        print(FILENAME + ' -d "DD MM DD MM" OR -d "DD MM YYYY DD MM YYYY"')
+        sys.exit()
 
-            dates = dict(opts)['-d'].split()
-            PF.exitOffice()
-            CL.initialize(dates)
-            DC.constructDocument(CL.index, dates, CL.template)
+    elif '-d' in opts_list or '--DATES' in opts_list:
+
+        DATES = dict(opts)['-d'].split()
+
+        s_time, e_time = CL.init_dates(DATES)
+
+        RD.gather_Bandwidth(s_time, e_time)
+
+        PF.exitOffice()
+
+        CL.intialize_content_vars(DATES)
+
+        DC.constructDocument(CL.index, CL.template)
 
 
-    #except:
-        #print('Error: {}'.format(sys.exc_info()))
-
-        #exit()
 
 
 if __name__ == '__main__':
