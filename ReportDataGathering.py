@@ -16,9 +16,9 @@ def search_logs(event, event_log):
 
 def gather_Bandwidth(start, end):
     global bandwidth_total, internet_total
-
     band_url = "https://" + CL.Clients[CL.index]['HOST'] + "/nagiosxi/api/v1/objects/statehistory?starttime=" + str(
         int(start)) + "&endtime=" + str(int(end)) + "&" + "apikey=" + CL.Clients[CL.index]['API_KEY']
+
     body = json.dumps({})
 
     band_request = req.request('GET', url=band_url, data=body, headers=headers, verify=False)

@@ -39,37 +39,124 @@ import clients as CL
 import ReportDataGathering as RD
 
 urllib3.disable_warnings()
-
+global Index
 
 def main(argv):
-    try:
+    startDT = None
+    endDT = None
 
-        opts, args = getopt.getopt(argv, "hd:", ['help', 'DATES'])
-        opts_list = list(dict(opts).keys())
-        print(opts_list)
+    # Validate Input Parameters
+    if len(sys.argv) == 8:
 
-    except getopt.GetoptError:
-        print(FILENAME + ' -d "DD MM DD MM"')
-        sys.exit(2)
+        day = int(sys.argv[1])
+        mon = str(sys.argv[2])
+        year = int(sys.argv[3])
 
-    if '-h' in opts_list or '--help' in opts_list:
-        print(FILENAME + ' -d "DD MM DD MM" OR -d "DD MM YYYY DD MM YYYY"')
+        dayto = int(sys.argv[4])
+        monto = str(sys.argv[5])
+        yearto = int(sys.argv[6])
+
+        CL.Index = str(sys.argv[7])
+
+        mon = PF.convert_month_to_int(mon)
+        monto = PF.convert_month_to_int(monto)
+
+        try:
+            startDT = datetime(year, mon, day)
+            endDT = datetime(yearto, monto, dayto)
+        except Exception as e:
+            print("Error with input arguments(8): ", e)
+            print(
+                "Correct usage is : <./main.py> <start day> <mon> <year> <end day> <mon> <year> <customer site>, where year is optional")
+            sys.exit()
+
+    elif len(sys.argv) == 6:
+        day = int(sys.argv[1])
+        mon = str(sys.argv[2])
+
+        dayto = int(sys.argv[3])
+        monto = str(sys.argv[4])
+
+        CL.Index = str(sys.argv[5])
+
+
+        mon = PF.convert_month_to_int(mon)
+        monto = PF.convert_month_to_int(monto)
+
+        try:
+            startDT = datetime(datetime.now().year, mon, day)
+            endDT = datetime(datetime.now().year, monto, dayto)
+        except Exception as e:
+            print("Error with input arguments(6): ", e)
+            print(
+                "Correct usage is : <./main.py> <start day> <mon> <year> <end day> <mon> <year> <customer site>, where year is optional")
+            sys.exit()
+
+    elif len(sys.argv) == 5:
+        day = int(sys.argv[1])
+        mon = str(sys.argv[2])
+        year = int(sys.argv[3])
+
+        CL.Index = str(sys.argv[4])
+
+
+        mon = PF.convert_month_to_int(mon)
+
+        try:
+            startDT = datetime(year, mon, day)
+            endDT = datetime.now()
+        except Exception as e:
+            print("Error with input arguments(5): ", e)
+            print(
+                "Correct usage is : <./main.py> <start day> <mon> <year> <end day> <mon> <year> <customer site>, where year is optional")
+            sys.exit()
+
+
+    elif len(sys.argv) == 4:
+        day = int(sys.argv[1])
+        mon = str(sys.argv[2])
+
+
+        CL.Index = str(sys.argv[3])
+        mon = PF.convert_month_to_int(mon)
+
+        try:
+            startDT = datetime(datetime.now().year, mon, day)
+            endDT = datetime.now()
+        except Exception as e:
+            print("Error with input arguments(4): ", e)
+            print(
+                "Correct usage is : <./main.py> <start day> <mon> <year> <end day> <mon> <year> <customer site>, where year is optional")
+            sys.exit()
+    else:
+        print(
+            "Correct usage is : <./main.py> <start day> <mon> <year> <end day> <mon> <year> <customer site>, where year is optional")
         sys.exit()
+    '''
+    # check Nagios Reachability
+    pingNagios = PF.checkNagiosReachability(nagiosInstance["ip"], reChecks=2)
+    if not pingNagios:
+        mail.sendMail(nagiosInstance["url"], message="Auto reporting failed ",
+                      body="Nagios unreachable, Failed to communicate with Nagios Server, no ping <br><br> ping IP: " +
+                           nagiosInstance["ip"],
+                      event_date=datetime.datetime.now().strftime("%d/%m/%Y, %H:%M:%S"), customer=customer)
+        sys.exit()
+    '''
+    # Convert datetimes to Nagios API format
 
-    elif '-d' in opts_list or '--DATES' in opts_list:
 
-        DATES = dict(opts)['-d'].split()
 
-        s_time, e_time = CL.init_dates(DATES)
 
-        RD.gather_Bandwidth(s_time, e_time)
+    starttime = (startDT - datetime(1970, 1, 1)).total_seconds() - 7200  # subtract two hours
+    endtime = (endDT - datetime(1970, 1, 1)).total_seconds() - 7200  # subtract two hours
 
-        PF.exitOffice()
+    RD.gather_Bandwidth(starttime, endtime)
 
-        CL.intialize_content_vars(DATES)
+    PF.exitOffice()
 
-        DC.constructDocument(CL.index, CL.template)
+    CL.intialize_content_vars(sys.argv)
 
+    DC.constructDocument(CL.index, CL.template)
 
 
 
