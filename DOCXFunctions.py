@@ -1,26 +1,28 @@
 import os
 import re
 from datetime import datetime, timedelta
-import win32com.client
 import docx
+import csv
 from docx import Document
 from docx.enum.dml import *
 from docx.enum.table import *
 from docx.enum.text import *
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from docx.enum.section import WD_ORIENT
+from docx.enum.section import WD_SECTION
 from docx.shared import Cm, RGBColor
 import pandas as pd
 import numpy as np
 import main as m
 import matplotlib.pyplot as plt
-
+import win32com.client as client
 from docx.enum.table import *
 
 
 #Edited from https://stackoverflow.com/questions/32992457/update-the-toc-table-of-content-of-ms-word-docx-documents-with-python
 def update_toc(docx_file):
-    word = win32com.client.DispatchEx("Word.Application")
+    word = client.DispatchEx("Word.Application")
     try:
         doc = word.Documents.Open(docx_file)
         doc.TablesOfContents(1).Update()
@@ -94,3 +96,50 @@ def create_Toc(cr_document):
 def line_brake(doc, n):
     for i in range(0, n):
         doc.add_paragraph()
+
+def change_orientation(document):
+    current_section = document.sections[-1]
+    new_width, new_height = current_section.page_height, current_section.page_width
+
+    new_section = document.add_section(WD_SECTION.NEW_PAGE)
+    new_section.orientation = WD_ORIENT.LANDSCAPE
+    new_section.page_width = new_width
+    new_section.page_height = new_height
+
+def csv2chart(file,doc):
+    with open(file, newline='') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        csv_headers = next(csv_reader)
+
+        csv_cols = len(csv_headers)
+
+        table = doc.add_table(rows=1, cols=csv_cols)
+        table.style = 'LightGrid-Accent1'
+        table.autofit = False
+        col = table.columns[0]
+        col.width = Cm(1)
+        hdr_cells = table.rows[0].cells
+
+        for i in range(csv_cols):
+            hdr_cells[i].text = csv_headers[i]
+
+        for row in csv_reader:
+            row_cells = table.add_row().cells
+            for i in range(csv_cols):
+                row_cells[i].text = row[i]
+
+
+
+#https://github.com/python-openxml/python-docx/issues/113
+def convert_to_pdf(filepath:str):
+    """Save a pdf of a docx file."""
+    try:
+        word = client.DispatchEx("Word.Application")
+        target_path = filepath.replace(".docx", r".pdf")
+        word_doc = word.Documents.Open(filepath)
+        word_doc.SaveAs(target_path, FileFormat=17)
+        word_doc.Close()
+    except Exception as e:
+            raise e
+    finally:
+            word.Quit()

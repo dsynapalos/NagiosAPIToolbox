@@ -4,8 +4,12 @@ import json
 import urllib3
 import re
 from pandas import *
+from datetime import datetime,timedelta
 import os
 
+
+import clients as CL
+import CSVFunctions as CO
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 minimum = False
 
@@ -236,8 +240,8 @@ def getServiceConfig(service, host, serverName):
     :param serverName: Server ID.
     :return: String.
     '''
-    url = 'https://' + DB.serverList[serverName]['ip'] + '/nagiosxi/api/v1/config/service?apikey=' + \
-          DB.serverList[serverName]['apikey'] + '&config_name=' + host \
+    url = 'https://' + CL.Clients[CL.Index]['HOST'] + '/nagiosxi/api/v1/config/service?apikey=' + \
+          CL.Clients[CL.Index]['API_KEY'] + '&config_name=' + host \
           + '&service_description=' + service + '&pretty=1'
     return req.request('GET', url, verify=False).text
 
@@ -923,3 +927,341 @@ def createCheckCustomCommand(serverName):
           DB.serverList[serverName]['apikey']
     request = req.request('POST', url, data=body, verify=False).text
     return request
+
+
+def getFullStateHistory(customer,start,end):
+    headers = {'content-type': 'application/json'}
+    url = "https://" + CL.Clients[CL.Index]['HOST'] + "/nagiosxi/api/v1/objects/statehistory?apikey=" + \
+          CL.Clients[CL.Index]['API_KEY'] + "&starttime=" + str(int(start)) + "&endtime=" + str(int(end))
+
+    response = req.request("GET", url, headers=headers, verify=False)
+
+    # print(response.status_code)
+    # print(url)
+    # print(response.text)
+
+    json_data = json.loads(response.text)
+    if json_data["recordcount"] == "0":
+        print("No entries", json_data)
+        exit()
+    stateEntries = json_data["stateentry"]
+
+    return stateEntries
+
+
+def getBandwidthScale(customer,host,service):
+
+    runnConfig = getServiceConfig(service, host, customer)
+    a = re.search('^check_xi_service_mrtgtraf!(.+rrd)\!(.+)\!(.+)\!(.)',
+                  json.loads(runnConfig)[0]['check_command'])
+    if a.group(3) == '!':
+        warn, crit, scale = re.search('(.+)!(.+)!(.)', a.group(2)).group(1), \
+                            re.search('(.+)!(.+)!(.)', a.group(2)).group(2), \
+                            re.search('(.+)!(.+)!(.)', a.group(2)).group(3)
+    else:
+        warn, crit, scale = a.group(2), a.group(3), a.group(4)
+
+    scaleText="< >"
+
+    if scale in ['B', 'b']:
+        scaleText = 'B/s'
+    elif scale in ['K', 'k']:
+        scaleText = 'Kb/s'
+    elif scale in ['M', 'm']:
+        scaleText = 'Mb/s'
+    elif scale in ['G', 'g']:
+        scaleText = 'Gb/s'
+
+
+    return scaleText
+
+
+downtime = []
+internetBandwidth = []
+
+def getAllHostsAvailability(customer, start, end):
+    headers = {'content-type': 'application/json'}
+    url = "https://" + CL.Clients[CL.Index]['HOST'] + "/nagiosxi/api/v1/objects/hostavailability?apikey=" + \
+          CL.Clients[CL.Index]['API_KEY'] + "&starttime=" + str(int(start)) + "&endtime=" + str(int(end))
+
+    response = req.request("GET", url, headers=headers, verify=False)
+
+    json_data = json.loads(response.text)
+    allHostsList = json_data["hostavailability"]
+    count = 0
+    up = 0
+    down = 0
+    unreachable = 0
+    hostAvail={}
+    for host in allHostsList:
+        up += float(host["percent_total_time_up"])
+        unreachable += float(host["percent_total_time_unreachable"])
+        down += float(host["percent_total_time_down"])
+        count+=1
+        hostAvail[host["host_name"]]={}
+        hostAvail[host["host_name"]]["up"] = host["percent_total_time_up"]
+        hostAvail[host["host_name"]]["down"] = host["percent_total_time_down"]
+
+
+    meanUP=up/count
+    meanUnreachable=unreachable/count
+    meanDown=down/count
+
+    return meanUP, meanUnreachable, meanDown, count, hostAvail
+def getAllServicesAvailability(customer, start, end):
+    headers = {'content-type': 'application/json'}
+    url = "https://" + CL.Clients[CL.Index]['HOST'] + "/nagiosxi/api/v1/objects/serviceavailability?apikey=" + \
+          CL.Clients[CL.Index]['API_KEY'] + "&starttime=" + str(int(start)) + "&endtime=" + str(int(end))
+
+    response = req.request("GET", url, headers=headers, verify=False)
+
+    json_data = json.loads(response.text)
+    allServicesList = json_data["serviceavailability"]
+    count = 0
+    ok = 0
+    warning = 0
+    critical = 0
+    for service in allServicesList:
+        ok += float(service["percent_total_time_ok"])
+        warning += float(service["percent_total_time_warning"])
+        critical += float(service["percent_total_time_critical"])
+        count += 1
+
+    meanOK = ok/count
+    meanWwarning = warning/count
+    meanCritical = critical/count
+    return meanOK, meanWwarning, meanCritical, count
+
+def searchIfExists(alert, matrix):
+    for e in matrix:
+        if alert["object_id"] == e["object_id"]:
+            return e
+    return None
+def getHostAvailability(customer, start, end, host):
+    headers = {'content-type': 'application/json'}
+    url = "https://" + CL.Clients[CL.Index]['HOST'] + "/nagiosxi/api/v1/objects/hostavailability?apikey=" + \
+          CL.Clients[CL.Index]['API_KEY'] + "&host=" + host + "&starttime=" + str(int(start)) + "&endtime=" + str(int(end))
+
+    response = req.request("GET", url, headers=headers, verify=False).text
+
+    json_data = json.loads(response)
+    tmp = json_data["hostavailability"][0]
+
+    tmp2 = {}
+
+    tmp2["up"] = (tmp["percent_total_time_up"])
+    tmp2["down"] = (tmp["percent_total_time_down"])
+
+    return tmp2
+def getAllHostsDowntimes(customer, start, end, outputdir,minutesFilterOut,stateEntries):
+
+    statusLog = []
+    i = 0
+    downtimes_total = 0
+
+    for e in reversed(stateEntries):
+        i += 1
+        if e["service_description"] == {}: # Status change refers to host
+            startPoint = searchIfExists(e, statusLog)
+            if e["state"] != "0" and startPoint == None:
+                # print(e["state_time"], e["host_name"],e["service_description"], ":",  e["output"], e["state_change"], e["state"], e["state_type"])
+                statusLog.append(e)
+            elif e["state"] == "0" and startPoint != None: # Host has recovered
+                FMT = '%Y-%m-%d %H:%M:%S'
+                downtimePeriod = datetime.strptime(e["state_time"], FMT) - datetime.strptime(
+                    startPoint["state_time"], FMT)
+                if (downtimePeriod > timedelta(minutes=minutesFilterOut)):
+                    # print(downtimePeriod,":",e["state_time"],e["host_name"], e["service_description"], startPoint["output"])
+                    try:
+                        hostavail = getHostAvailability(customer, start, end, startPoint["host_name"])
+                        downtime.append((startPoint["host_name"], startPoint["service_description"],
+                                         startPoint["state_time"], e["state_time"],
+                                         startPoint["output"], downtimePeriod, hostavail["up"], hostavail["down"]))
+                    except Exception as exception:
+                        print("Couldn't get availability for host:" + startPoint["host_name"] + " error:", exception)
+
+                downtimes_total += 1
+                statusLog.remove(startPoint)
+
+
+    print("downtimes total:" + str(downtimes_total))
+    print("downtimes" + str(len(downtime)))
+    print("statusLog", statusLog)
+    stillDown=[]
+
+    for entry in statusLog:
+        downtimePeriod = datetime.fromtimestamp(end) - datetime.strptime(entry["state_time"], FMT)
+        hostavail = getHostAvailability(customer, start, end, entry["host_name"])
+        stillDown.append((entry["host_name"], entry["service_description"],
+                                         entry["state_time"], end,
+                                         entry["output"], downtimePeriod, hostavail["up"], hostavail["down"]))
+
+    downtime.sort()
+    formatedStart = str(datetime.utcfromtimestamp(start).strftime('%Y-%m-%d'))
+    formatedEnd = str(datetime.utcfromtimestamp(end).strftime('%Y-%m-%d'))
+
+    #CO.output(downtime, 'Host Downtimes' + formatedStart + "-" + formatedEnd, False, outputdir, 1, True,
+    #                  str(downtimes_total))
+    CO.output(downtime, 'Host Downtimes', False, "Stats Working Dir", 1, True, str(downtimes_total))
+    CO.output(stillDown, 'Hosts that are still down', False, "Stats Working Dir", 1, True, str(downtimes_total))
+
+
+    return downtimes_total, downtime, statusLog, stillDown
+
+
+def getAllInterfacesAvailability(customer, start, end, outputdir, minutesFilterOut, stateEntries):
+
+    i = 0
+    statusLog = []
+    interfaceAvaillability = []
+    warningsNo = 0
+
+    for e in reversed(stateEntries):
+        i += 1
+        if "Status" in e["service_description"] and not "Power" in e["service_description"]:
+            startPoint=searchIfExists(e, statusLog)
+            if e["state"]!="0" and startPoint == None :
+                #print(e["state_time"], e["host_name"],e["service_description"], ":",  e["output"], e["state_change"], e["state"], e["state_type"])
+                statusLog.append(e)
+                pass
+            elif e["state"]=="0" and startPoint != None :
+                FMT = '%Y-%m-%d %H:%M:%S'
+                downtimePeriod=datetime.strptime(e["state_time"], FMT) - datetime.strptime(startPoint["state_time"], FMT)
+                if( downtimePeriod>timedelta(minutes=minutesFilterOut) and not ("SNMP error" in startPoint["output"]) ):
+                #if (downtimePeriod > timedelta(minutes=20) and not "SNMP error" in startPoint["output"]):
+                    print(e)
+                    #print(downtimePeriod,":",e["state_time"],e["host_name"], e["service_description"], startPoint["output"])
+                    interfaceAvaillability.append((startPoint["host_name"], startPoint["service_description"],
+                                                   startPoint["state_time"], e["state_time"],
+                                                   startPoint["output"], downtimePeriod))
+                statusLog.remove(startPoint)
+                warningsNo += 1
+
+    stillDown = []
+
+    for entry in statusLog:
+        downtimePeriod = datetime.fromtimestamp(end) - datetime.strptime(entry["state_time"], FMT)
+        #serviceAvail = getServiceAvailability(customer, start, end, entry["host_name"])
+        stillDown.append((entry["host_name"], entry["service_description"],
+                          entry["state_time"], end,
+                          entry["output"], downtimePeriod))
+
+    interfaceAvaillability.sort()
+    print("interfaceAvaillability",interfaceAvaillability)
+    print("Servstilldown",stillDown)
+
+    formatedStart=str(datetime.utcfromtimestamp(start).strftime('%Y-%m-%d'))
+    formatedEnd=str(datetime.utcfromtimestamp(end).strftime('%Y-%m-%d'))
+
+    #CO.output(interfaceAvaillability, 'Interface Downtimes' + formatedStart + "-" + formatedEnd, False, outputdir, 1, False, " ")
+    CO.output(interfaceAvaillability, 'Interface Downtimes', False, "Stats Working Dir", 1, False, " ")
+    CO.output(stillDown, 'Interfaces that are still down', False, "Stats Working Dir", 1, False, str(warningsNo))
+
+    return warningsNo, interfaceAvaillability, statusLog, stillDown
+
+def getAllBandwidthAlerts(customer, start, end, outputdir,stateEntries):
+
+    alertBandwidth = []
+    internetBandwidth = []
+
+    i = 0
+    bandwidth_total = 0
+    tmpMatrix = []
+
+    for e in reversed(stateEntries):
+
+        i += 1
+        if "Bandwidth" in e["service_description"]:
+            startPoint = searchIfExists(e, tmpMatrix)
+            if e["state"] != "0" and startPoint == None:
+                tmpMatrix.append(e)
+                bandwidth_total += 1
+                pass
+            elif e["state"] == "0" and startPoint != None:
+
+                if (startPoint["service_description"].find("Internet") == -1):
+                    if (startPoint["output"].find("Mbps") != -1):
+                        splitted_incoming = re.split(' in: ', startPoint["output"])[1]
+                        splitted_incoming = re.split('Mbps', splitted_incoming)[0]
+                        splitted_outgoing = re.split(' Out: ', startPoint["output"])[1]
+                        splitted_outgoing = re.split('Mbps', splitted_outgoing)[0]
+
+                        FMT = '%Y-%m-%d %H:%M:%S'
+                        downtimePeriod = datetime.strptime(e["state_time"], FMT) - datetime.strptime(
+                            startPoint["state_time"], FMT)
+                        if (downtimePeriod > timedelta(minutes=25) or (
+                                float(splitted_outgoing) > 90 and downtimePeriod > timedelta(minutes=10)) or (
+                                float(splitted_incoming) > 90) and downtimePeriod > timedelta(minutes=10)):
+                            alertBandwidth.append((startPoint["host_name"], startPoint["service_description"],
+                                                   startPoint["state_time"], e["state_time"],
+                                                   startPoint["output"], downtimePeriod))
+
+                        tmpMatrix.remove(startPoint)
+                    elif (startPoint["output"].find("Kbps") != -1):
+                        splitted_incoming = re.split(' in: ', startPoint["output"])[1]
+                        splitted_incoming = re.split('Kbps', splitted_incoming)[0]
+                        splitted_outgoing = re.split(' Out: ', startPoint["output"])[1]
+                        splitted_outgoing = re.split('Kbps', splitted_outgoing)[0]
+
+                        FMT = '%Y-%m-%d %H:%M:%S'
+                        downtimePeriod = datetime.strptime(e["state_time"], FMT) - datetime.strptime(
+                            startPoint["state_time"], FMT)
+                        if (downtimePeriod > timedelta(minutes=25) or (
+                                float(splitted_outgoing) > 90000 and downtimePeriod > timedelta(
+                                minutes=10)) or (
+                                float(splitted_incoming) > 90000) and downtimePeriod > timedelta(minutes=10)):
+                            alertBandwidth.append((startPoint["host_name"], startPoint["service_description"],
+                                                   startPoint["state_time"], e["state_time"],
+                                                   startPoint["output"], downtimePeriod))
+
+                        tmpMatrix.remove(startPoint)
+
+
+                elif "CRITICAL" in startPoint["output"] or "WARNING" in startPoint["output"]:
+                    FMT = '%Y-%m-%d %H:%M:%S'
+                    downtimePeriod = datetime.strptime(e["state_time"], FMT) - datetime.strptime(
+                        startPoint["state_time"], FMT)
+
+                    print(downtimePeriod, ":", e["state_time"], e["host_name"], e["service_description"],
+                          startPoint["output"])
+                    alertBandwidth.append((startPoint["host_name"], startPoint["service_description"],
+                                           startPoint["state_time"], e["state_time"],
+                                           startPoint["output"], downtimePeriod))
+                    tmpMatrix.remove(startPoint)
+
+                pass
+
+    formatedStart = str(datetime.utcfromtimestamp(start).strftime('%Y-%m-%d'))
+    formatedEnd = str(datetime.utcfromtimestamp(end).strftime('%Y-%m-%d'))
+    #
+
+    for e in alertBandwidth[:]:
+        if "Internet" in e[1]:
+            alertBandwidth.remove(e)
+            internetBandwidth.append(e)
+        else:
+            pass
+
+        # print(e[1])
+    print("bandwidth total:" + str(bandwidth_total))
+    print("internet bandwidth total:" + str(len(internetBandwidth)))
+
+    for e in internetBandwidth[:]:
+
+        if e[5] < timedelta(minutes=10):
+            internetBandwidth.remove(e)
+
+            print(e[5])
+
+    #CO.output(alertBandwidth, 'Important Bandwidth' + formatedStart + "-" + formatedEnd, False, outputdir, 1,
+    #                  False, bandwidth_total)
+
+    #CO.output(internetBandwidth, 'Internet Bandwidth' + formatedStart + "-" + formatedEnd, False, outputdir, 1,
+    #                  False, len(internetBandwidth))
+
+    CO.output(alertBandwidth, 'Important Bandwidth', False, "Stats Working Dir", 1, False, bandwidth_total)
+
+    CO.output(internetBandwidth, 'Internet Bandwidth', False, "Stats Working Dir", 1, False,
+                      len(internetBandwidth))
+
+    return str(bandwidth_total), str(len(internetBandwidth))

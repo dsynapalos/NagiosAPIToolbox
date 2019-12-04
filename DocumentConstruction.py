@@ -11,7 +11,6 @@ import DOCXFunctions as DF
 
 
 def constructDocument(index, template):
-
     new_document = Document(template)
 
     '''
@@ -51,7 +50,6 @@ def constructDocument(index, template):
     '''
     Contacts
     '''
-
 
     new_document.add_paragraph().add_run(CL.inform).font.name = 'Cambria'
     new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
@@ -112,13 +110,22 @@ def constructDocument(index, template):
 
     new_document.add_page_break()
 
+    DF.change_orientation(new_document)
+
     new_document.add_heading(CL.chapter1_4, 2)
+
+    for host in CL.Clients[CL.Index]['BAND_GRAPHS'].keys():
+        for number in range(0, len(CL.Clients[CL.Index]['BAND_GRAPHS'][host])):
+            new_document.add_picture(
+                MN.DIRECTORY + '/Screenshots/' + host + '_' + CL.Clients[CL.Index]['BAND_GRAPHS'][host][number].replace(
+                    ' ', '').replace('-', '_') + '.png', width=Cm(22.25))
 
     new_document.add_page_break()
 
     '''
     Chapter 2
     '''
+    DF.change_orientation(new_document)
 
     new_document.add_heading(CL.chapter2_0, 1)
 
@@ -128,16 +135,24 @@ def constructDocument(index, template):
 
     DF.line_brake(new_document, 1)
 
-    new_document.add_paragraph().add_run('Ακολουθεί ο πίνακας με τα αναλυτικά στοιχεία :')
+    new_document.add_paragraph().add_run(CL.chapter2_0_2)
     new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
     DF.line_brake(new_document, 1)
 
     new_document.add_heading(CL.chapter2_1, 2)
 
+    DF.line_brake(new_document, 1)
+
+    DF.csv2chart(MN.DIRECTORY + '/Stats Working Dir/Important Bandwidth.csv', new_document)
+
     new_document.add_page_break()
 
     new_document.add_heading(CL.chapter2_2, 2)
+
+    DF.line_brake(new_document, 1)
+
+    DF.csv2chart(MN.DIRECTORY + '/Stats Working Dir/Internet Bandwidth.csv', new_document)
 
     new_document.add_page_break()
 
@@ -147,15 +162,33 @@ def constructDocument(index, template):
 
     new_document.add_heading(CL.chapter3_0, 1)
 
+    DF.line_brake(new_document, 2)
+
+    new_document.add_paragraph().add_run(CL.chapter3_0_1)
+
     DF.line_brake(new_document, 1)
 
+    new_document.add_paragraph().add_run(CL.chapter3_0_2)
+    new_document.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
     new_document.add_heading(CL.chapter3_1, 2)
+
+    DF.line_brake(new_document, 1)
+
+    DF.csv2chart(MN.DIRECTORY + '/Stats Working Dir/Host Downtimes.csv', new_document)
 
     new_document.add_page_break()
 
     new_document.add_heading(CL.chapter3_2, 2)
 
-    new_document.save(MN.DIRECTORY+'/demo.docx')
+    DF.line_brake(new_document, 1)
 
-    DF.update_toc(MN.DIRECTORY+'/demo.docx')
+    DF.csv2chart(MN.DIRECTORY + '/Stats Working Dir/Interface Downtimes.csv', new_document)
 
+    #new_document.add_page_break()
+
+    new_document.save(MN.DIRECTORY + '/demo.docx')
+
+    DF.update_toc(MN.DIRECTORY + '/demo.docx')
+
+    DF.convert_to_pdf(MN.DIRECTORY + '/demo.docx')

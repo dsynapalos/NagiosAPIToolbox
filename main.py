@@ -156,7 +156,12 @@ def main(argv):
 
     CL.intialize_content_vars(sys.argv)
 
-    DC.constructDocument(CL.index, CL.template)
+    PF.screenshots(starttime, endtime)
+
+    DC.constructDocument(CL.Index, CL.template)
+
+    PF.clean_up()
+
 
 
 

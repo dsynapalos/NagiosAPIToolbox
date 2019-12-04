@@ -5,13 +5,14 @@ from urllib.parse import urlencode
 from platform import system as system_name
 from subprocess import call as system_call
 import RESTFunctions as RF
+import main as MN
 import clients as CL
 import requests as req
 import pathlib
 import plotly
 import plotly.graph_objects as go
 from numpy import nanmean
-
+import shutil
 
 # Edited from https://stackoverflow.com/questions/2953462/pinging-servers-in-python
 def ping(host):
@@ -45,35 +46,33 @@ def screenshots(starttime, endtime):
     screenshots = 'Screenshots'
     pathlib.Path(screenshots).mkdir(parents=True, exist_ok=True)
 
-    screenshotsForDocx = 'Screenshots For Docx'
-    pathlib.Path(screenshotsForDocx).mkdir(parents=True, exist_ok=True)
-
     outputdir = 'Stats Working Dir'
-    pathlib.Path(outputdir).mkdir(parents=True, exist_ok=True)
-    outputdir = 'Stats-' + formatedStart + "-" + formatedEnd
     pathlib.Path(outputdir).mkdir(parents=True, exist_ok=True)
 
     minutesFilterOut = 1
 
-    createGraphs(CL.index, starttime, endtime,
-                 RF.getBandwidthScale(CL.index, CL.Clients[CL.index]['OUTER_HOST'],
-                                      CL.Clients[CL.index]['OUTER_SERVICE']))
+    for host in CL.Clients[CL.Index]['BAND_GRAPHS'].keys():
+        for number in range(0, len(CL.Clients[CL.Index]['BAND_GRAPHS'][host])):
+            service = CL.Clients[CL.Index]['BAND_GRAPHS'][host][number]
+            createGraphs(host, service, starttime, endtime,
+                         RF.getBandwidthScale(CL.Index, host,
+                                              service))
 
-    meanUP, meanDown, meanUnreachable, count = RF.getAllHostsAvailability(CL.index, starttime, endtime)
+    meanUP, meanDown, meanUnreachable, count, hostAvail = RF.getAllHostsAvailability(CL.Index, starttime, endtime)
     print(meanUP, meanDown, count)
     createPieChart(["UP", "Unreachable", "Down"], ['#b2ff5f', '#f6ff00', '#ff2600'], [meanUP, meanDown],
                    name='Average Host Availlability')
 
-    meanOK, meanWwarning, meanCritical, count = RF.getAllServicesAvailability(CL.index, starttime, endtime)
+    meanOK, meanWwarning, meanCritical, count = RF.getAllServicesAvailability(CL.Index, starttime, endtime)
     print(meanOK, meanWwarning, meanCritical, count)
     createPieChart(["OK", "Warning", "Critical"], ['#b2ff5f', '#f6ff00', '#ff2600'],
-                   [meanOK, meanWwarning, meanCritical], name='Average Service Availlability')
+                   [meanOK, meanWwarning, meanCritical], name='Average Service Availability')
 
-    RF.getAllHostsAvailability(CL.index, starttime, endtime)
-    stateHistory = RF.getFullStateHistory(CL.index, starttime, endtime)
-    RF.getAllHostsDowntimes(CL.index, starttime, endtime, 'Stats Working Dir', minutesFilterOut, stateHistory)
-    RF.getAllInterfacesAvailability(CL.index, starttime, endtime, 'Stats Working Dir', minutesFilterOut, stateHistory)
-    RF.getAllBandwidthAlerts(CL.index, starttime, endtime, 'Stats Working Dir', stateHistory)
+    RF.getAllHostsAvailability(CL.Index, starttime, endtime)
+    stateHistory = RF.getFullStateHistory(CL.Index, starttime, endtime)
+    RF.getAllHostsDowntimes(CL.Index, starttime, endtime, 'Stats Working Dir', minutesFilterOut, stateHistory)
+    RF.getAllInterfacesAvailability(CL.Index, starttime, endtime, 'Stats Working Dir', minutesFilterOut, stateHistory)
+    RF.getAllBandwidthAlerts(CL.Index, starttime, endtime, 'Stats Working Dir', stateHistory)
 
 
 def createGraphs(hostName, serviceName, starttime, endtime, scaleText):
@@ -90,7 +89,7 @@ def createGraphs(hostName, serviceName, starttime, endtime, scaleText):
     while start < endtime:
 
         body = {
-            'apikey': CL.Clients[CL.index]['API_KEY'],
+            'apikey': CL.Clients[CL.Index]['API_KEY'],
             'host_name': hostName,
             'service_description': serviceName,
             'start': start,
@@ -99,7 +98,7 @@ def createGraphs(hostName, serviceName, starttime, endtime, scaleText):
         }
         qstr = urlencode(body)
 
-        url = 'https://' + CL.Clients[CL.index]['HOST'] + '/nagiosxi/api/v1/objects/rrdexport/?' + qstr
+        url = 'https://' + CL.Clients[CL.Index]['HOST'] + '/nagiosxi/api/v1/objects/rrdexport/?' + qstr
 
         reChecks = 3
         backoff = 5
@@ -128,10 +127,10 @@ def createGraphs(hostName, serviceName, starttime, endtime, scaleText):
 
     name = hostName + ' : ' + serviceName
 
-    createOverlayGraph(time, inbw, outbw, name, scaleText)
+    createOverlayGraph(time, inbw, outbw, name, scaleText, hostName, serviceName)
 
 
-def createOverlayGraph(time, inbw, outbw, name, scaleText):
+def createOverlayGraph(time, inbw, outbw, name, scaleText, hostName, serviceName):
     max_ = max(inbw + outbw)
 
     latest = str(max(time))
@@ -202,11 +201,13 @@ def createOverlayGraph(time, inbw, outbw, name, scaleText):
 
     if not os.path.exists("Screenshots"):
         os.mkdir("Screenshots")
-    fig.write_image("Screenshots/overlay_bwgraphs, " + date_time + ".png")
+    fig.write_image("Screenshots/" + hostName + '_' + serviceName.replace(' ', '').replace('-', '_') + ".png")
 
     if not os.path.exists("HTML"):
         os.mkdir("HTML")
-    plotly.offline.plot(fig, filename='HTML/overlay_Bandwidth_Graph, ' + date_time + '.html')
+    plotly.offline.plot(fig,
+    filename = 'HTML/overlay_Bandwidth_Graph, ' + date_time + '_' + hostName + '_' + serviceName.replace(
+        ' ', '').replace('-', '_') + '.html')
 
     return fig
 
@@ -239,12 +240,13 @@ def createPieChart(labels, colors, values, name="pie"):
 
     plotly.offline.plot(fig, filename='HTML/' + name + '-' + date_time + '.html')
 
+
 def convert_month_to_str(int):
-    if(int==1):
+    if (int == 1):
         return 'Jan'
     if (int == 2):
         return 'Feb'
-    if (int == 3) :
+    if (int == 3):
         return 'Mar'
     if (int == 4):
         return 'Apr'
@@ -265,12 +267,13 @@ def convert_month_to_str(int):
     if (int == 12):
         return 'Dec'
 
+
 def convert_month_to_int(str):
-    if(str=='Jan'):
+    if (str == 'Jan'):
         return 1
     if (str == 'Feb'):
         return 2
-    if (str == 'Mar') :
+    if (str == 'Mar'):
         return 3
     if (str == 'Apr'):
         return 4
@@ -291,3 +294,7 @@ def convert_month_to_int(str):
     if (str == 'Dec'):
         return 12
 
+def clean_up():
+    shutil.rmtree(MN.DIRECTORY+'/HTML')
+    shutil.rmtree(MN.DIRECTORY+'/Screenshots')
+    shutil.rmtree(MN.DIRECTORY+'/Stats Working Dir')
